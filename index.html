@@ -16,71 +16,43 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            color: white;
             z-index: 100;
-        }
-        .control-group {
-            margin-bottom: 10px;
-        }
-        label {
-            display: inline-block;
-            width: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         button {
-            background: #4CAF50;
-            border: none;
-            color: white;
             padding: 8px 16px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 14px;
-            margin: 4px 2px;
-            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid white;
             border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
         button:hover {
-            background: #45a049;
+            background: rgba(255,255,255,0.4);
         }
-        input[type="range"] {
-            width: 150px;
+        #recordingStatus {
+            color: white;
+            background: rgba(255,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: none;
         }
     </style>
 </head>
 <body>
     <canvas id="turtleCanvas"></canvas>
     <div id="controls">
-        <div class="control-group">
-            <button id="downloadBtn">Download WEBM (7s)</button>
-        </div>
-        <div class="control-group">
-            <label for="speedSlider">Animation Speed:</label>
-            <input type="range" id="speedSlider" min="0.1" max="5" value="1" step="0.1">
-        </div>
-        <div class="control-group">
-            <label for="sizeSlider">Pattern Size:</label>
-            <input type="range" id="sizeSlider" min="50" max="300" value="150" step="10">
-        </div>
-        <div class="control-group">
-            <label for="hueSpeedSlider">Hue Speed:</label>
-            <input type="range" id="hueSpeedSlider" min="0.001" max="0.02" value="0.005" step="0.001">
-        </div>
-        <div class="control-group">
-            <label for="lineWidthSlider">Line Width:</label>
-            <input type="range" id="lineWidthSlider" min="0.5" max="5" value="1" step="0.5">
-        </div>
-        <div class="control-group">
-            <label for="layersSlider">Layers:</label>
-            <input type="range" id="layersSlider" min="5" max="30" value="18" step="1">
-        </div>
+        <button id="downloadBtn">Download 7s WEBM Clip</button>
+        <div id="recordingStatus">Recording 7 seconds...</div>
     </div>
-    
     <script>
         const canvas = document.getElementById('turtleCanvas');
         const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const recordingStatus = document.getElementById('recordingStatus');
         
         // Set canvas size to window size
         canvas.width = window.innerWidth;
@@ -96,18 +68,10 @@
         let y = centerY;
         let penDown = true;
         let color = [0, 0, 0];
-        
-        // Animation variables
-        let animationFrame = 0;
-        let animationSpeed = 1;
-        let patternSize = 150;
-        let hueSpeed = 0.005;
-        let lineWidth = 1;
-        let layers = 18;
-        let isRecording = false;
-        let recordedChunks = [];
-        let mediaRecorder;
+        let time = 0;
         let animationId;
+        let mediaRecorder;
+        let recordedChunks = [];
         
         function setColor(c) {
             color = c;
@@ -181,29 +145,43 @@
         // Main drawing function
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.lineWidth = lineWidth;
+            ctx.lineWidth = 1;
             x = centerX;
             y = centerY;
             angle = 0;
             
-            let h = animationFrame * 0.001;
+            let h = (time / 100) % 1;
             for (let i = 0; i < 16; i++) {
-                for (let j = 0; j < layers; j++) {
+                for (let j = 0; j < 18; j++) {
                     const c = hsvToRgb(h, 1, 1);
                     setColor(c);
-                    h += hueSpeed;
+                    h += 0.005;
                     
-                    rt(90);
-                    circle(patternSize - j * (patternSize/layers), 90);
-                    lt(90);
-                    circle(patternSize - j * (patternSize/layers), 90);
-                    rt(180);
+                    rt(90 + Math.sin(time/200) * 10);
+                    circle(150 - j * 6 + Math.sin(time/300 + j) * 20, 90);
+                    lt(90 + Math.cos(time/250) * 10);
+                    circle(150 - j * 6 + Math.cos(time/350 + j) * 20, 90);
+                    rt(180 + Math.sin(time/150) * 15);
                 }
-                circle(40, 24);
+                circle(40 + Math.sin(time/400) * 30, 24);
             }
             
-            animationFrame += animationSpeed;
+            time += 1;
             animationId = requestAnimationFrame(draw);
+        }
+        
+        // Start/stop animation
+        function startAnimation() {
+            if (!animationId) {
+                draw();
+            }
+        }
+        
+        function stopAnimation() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
         }
         
         // Handle window resize
@@ -214,73 +192,57 @@
             centerY = canvas.height / 2;
         });
         
-        // Setup controls
-        document.getElementById('speedSlider').addEventListener('input', function(e) {
-            animationSpeed = parseFloat(e.target.value);
-        });
-        
-        document.getElementById('sizeSlider').addEventListener('input', function(e) {
-            patternSize = parseInt(e.target.value);
-        });
-        
-        document.getElementById('hueSpeedSlider').addEventListener('input', function(e) {
-            hueSpeed = parseFloat(e.target.value);
-        });
-        
-        document.getElementById('lineWidthSlider').addEventListener('input', function(e) {
-            lineWidth = parseFloat(e.target.value);
-        });
-        
-        document.getElementById('layersSlider').addEventListener('input', function(e) {
-            layers = parseInt(e.target.value);
-        });
-        
-        // Download WEBM button
-        document.getElementById('downloadBtn').addEventListener('click', async function() {
-            if (isRecording) return;
-            
-            isRecording = true;
-            recordedChunks = [];
-            this.textContent = "Recording...";
-            
-            // Setup media recorder
-            const stream = canvas.captureStream(30);
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-            
-            mediaRecorder.ondataavailable = function(e) {
-                if (e.data.size > 0) {
-                    recordedChunks.push(e.data);
-                }
-            };
-            
-            mediaRecorder.onstop = function() {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'psychedelic-animation.webm';
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
+        // Download WEBM clip
+        downloadBtn.addEventListener('click', async function() {
+            try {
+                // Start recording
+                recordingStatus.style.display = 'block';
+                downloadBtn.disabled = true;
                 
-                isRecording = false;
-                document.getElementById('downloadBtn').textContent = "Download WEBM (7s)";
-            };
-            
-            mediaRecorder.start();
-            
-            // Stop after 7 seconds
-            setTimeout(() => {
-                mediaRecorder.stop();
-                stream.getTracks().forEach(track => track.stop());
-            }, 7000);
+                const stream = canvas.captureStream(30);
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = function() {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'psychedelic-animation.webm';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                    
+                    recordingStatus.style.display = 'none';
+                    downloadBtn.disabled = false;
+                };
+                
+                mediaRecorder.start();
+                
+                // Stop after 7 seconds
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                }, 7000);
+                
+            } catch (err) {
+                console.error('Error recording:', err);
+                recordingStatus.style.display = 'none';
+                downloadBtn.disabled = false;
+            }
         });
         
-        // Start drawing
-        draw();
+        // Start animation
+        startAnimation();
     </script>
 </body>
 </html>
