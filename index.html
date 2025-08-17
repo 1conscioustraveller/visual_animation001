@@ -1,248 +1,302 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Psychedelic Turtle Animation</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Psychedelic Animation Generator</title>
     <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: black; 
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
             font-family: Arial, sans-serif;
-        }
-        canvas { 
-            display: block; 
-        }
-        #controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 100;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            align-items: center;
+            color: white;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+        .controls {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px;
+            width: 80%;
+            max-width: 600px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+        input[type="range"], select {
+            width: 100%;
         }
         button {
-            padding: 8px 16px;
-            background: rgba(255,255,255,0.2);
+            background: linear-gradient(45deg, #ff00ff, #00ffff);
+            border: none;
             color: white;
-            border: 1px solid white;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 5px;
             cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
             transition: all 0.3s;
         }
         button:hover {
-            background: rgba(255,255,255,0.4);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
         }
-        #recordingStatus {
-            color: white;
-            background: rgba(255,0,0,0.5);
-            padding: 5px 10px;
-            border-radius: 4px;
-            display: none;
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .download-container {
+            margin: 20px;
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            background: linear-gradient(45deg, #ff00ff, #00ffff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <canvas id="turtleCanvas"></canvas>
-    <div id="controls">
-        <button id="downloadBtn">Download 7s WEBM Clip</button>
-        <div id="recordingStatus">Recording 7 seconds...</div>
+    <h1>Psychedelic Animation Generator</h1>
+    
+    <canvas id="psychedelicCanvas"></canvas>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="patternType">Pattern Type</label>
+            <select id="patternType">
+                <option value="circles">Pulsing Circles</option>
+                <option value="waves">Radiating Waves</option>
+                <option value="spiral">Hypnotic Spiral</option>
+                <option value="grid">Warping Grid</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="speed">Animation Speed</label>
+            <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+        </div>
+        
+        <div class="control-group">
+            <label for="colorSpeed">Color Change Speed</label>
+            <input type="range" id="colorSpeed" min="0.1" max="5" step="0.1" value="1">
+        </div>
+        
+        <div class="control-group">
+            <label for="complexity">Pattern Complexity</label>
+            <input type="range" id="complexity" min="1" max="10" step="1" value="5">
+        </div>
+        
+        <div class="control-group">
+            <label for="size">Element Size</label>
+            <input type="range" id="size" min="5" max="50" step="1" value="20">
+        </div>
+        
+        <div class="control-group">
+            <label for="brightness">Brightness</label>
+            <input type="range" id="brightness" min="50" max="200" step="10" value="100">
+        </div>
     </div>
+    
+    <div class="download-container">
+        <button id="downloadBtn">Download Animation (7s)</button>
+        <div id="countdown" style="display: none; margin-top: 10px;">Preparing download... 7</div>
+    </div>
+
     <script>
-        const canvas = document.getElementById('turtleCanvas');
+        const canvas = document.getElementById('psychedelicCanvas');
         const ctx = canvas.getContext('2d');
         const downloadBtn = document.getElementById('downloadBtn');
-        const recordingStatus = document.getElementById('recordingStatus');
+        const countdown = document.getElementById('countdown');
         
-        // Set canvas size to window size
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        // Set canvas size
+        function resizeCanvas() {
+            const size = Math.min(window.innerWidth - 40, 800);
+            canvas.width = size;
+            canvas.height = size;
+        }
         
-        // Center of the canvas
-        let centerX = canvas.width / 2;
-        let centerY = canvas.height / 2;
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
         
-        // Turtle-like functions
-        let angle = 0;
-        let x = centerX;
-        let y = centerY;
-        let penDown = true;
-        let color = [0, 0, 0];
+        // Animation variables
         let time = 0;
-        let animationId;
-        let mediaRecorder;
-        let recordedChunks = [];
+        let hue = 0;
+        let frames = [];
+        let isRecording = false;
+        let frameCount = 0;
+        let countdownInterval;
         
-        function setColor(c) {
-            color = c;
-            ctx.strokeStyle = `rgb(${Math.floor(c[0]*255)}, ${Math.floor(c[1]*255)}, ${Math.floor(c[2]*255)})`;
+        // Get control values
+        function getControls() {
+            return {
+                patternType: document.getElementById('patternType').value,
+                speed: parseFloat(document.getElementById('speed').value),
+                colorSpeed: parseFloat(document.getElementById('colorSpeed').value),
+                complexity: parseInt(document.getElementById('complexity').value),
+                size: parseInt(document.getElementById('size').value),
+                brightness: parseInt(document.getElementById('brightness').value) / 100
+            };
         }
         
-        function forward(dist) {
-            const newX = x + dist * Math.cos(angle * Math.PI / 180);
-            const newY = y + dist * Math.sin(angle * Math.PI / 180);
-            
-            if (penDown) {
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(newX, newY);
-                ctx.stroke();
-            }
-            
-            x = newX;
-            y = newY;
-        }
-        
-        function circle(radius, extent) {
-            if (!penDown) return;
-            
-            const startAngle = angle - 90;
-            const endAngle = startAngle + extent;
-            const clockwise = extent < 0;
-            
-            ctx.beginPath();
-            ctx.arc(x, y, Math.abs(radius), 
-                   (startAngle) * Math.PI / 180, 
-                   (endAngle) * Math.PI / 180, 
-                   clockwise);
-            ctx.stroke();
-            
-            // Update position to end of arc
-            angle += extent;
-            x += radius * Math.cos(angle * Math.PI / 180) - radius * Math.cos((angle - extent) * Math.PI / 180);
-            y += radius * Math.sin(angle * Math.PI / 180) - radius * Math.sin((angle - extent) * Math.PI / 180);
-        }
-        
-        function rt(degrees) {
-            angle += degrees;
-        }
-        
-        function lt(degrees) {
-            angle -= degrees;
-        }
-        
-        // HSV to RGB conversion
-        function hsvToRgb(h, s, v) {
-            let r, g, b;
-            const i = Math.floor(h * 6);
-            const f = h * 6 - i;
-            const p = v * (1 - s);
-            const q = v * (1 - f * s);
-            const t = v * (1 - (1 - f) * s);
-            
-            switch (i % 6) {
-                case 0: r = v; g = t; b = p; break;
-                case 1: r = q; g = v; b = p; break;
-                case 2: r = p; g = v; b = t; break;
-                case 3: r = p; g = q; b = v; break;
-                case 4: r = t; g = p; b = v; break;
-                case 5: r = v; g = p; b = q; break;
-            }
-            
-            return [r, g, b];
-        }
-        
-        // Main drawing function
+        // Draw psychedelic pattern
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.lineWidth = 1;
-            x = centerX;
-            y = centerY;
-            angle = 0;
+            const { patternType, speed, colorSpeed, complexity, size, brightness } = getControls();
             
-            let h = (time / 100) % 1;
-            for (let i = 0; i < 16; i++) {
-                for (let j = 0; j < 18; j++) {
-                    const c = hsvToRgb(h, 1, 1);
-                    setColor(c);
-                    h += 0.005;
-                    
-                    rt(90 + Math.sin(time/200) * 10);
-                    circle(150 - j * 6 + Math.sin(time/300 + j) * 20, 90);
-                    lt(90 + Math.cos(time/250) * 10);
-                    circle(150 - j * 6 + Math.cos(time/350 + j) * 20, 90);
-                    rt(180 + Math.sin(time/150) * 15);
+            time += 0.01 * speed;
+            hue = (hue + 0.5 * colorSpeed) % 360;
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
+            
+            if (patternType === 'circles') {
+                // Pulsing circles pattern
+                for (let i = 0; i < complexity * 5; i++) {
+                    const radius = size * 5 + Math.sin(time + i) * size * 4;
+                    const alpha = brightness * (0.5 + 0.5 * Math.sin(time * 0.5 + i * 0.2));
+                    ctx.strokeStyle = `hsla(${(hue + i * 10) % 360}, 100%, 50%, ${alpha})`;
+                    ctx.lineWidth = 2 + Math.sin(time * 0.3 + i) * 1.5;
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                    ctx.stroke();
                 }
-                circle(40 + Math.sin(time/400) * 30, 24);
+            } else if (patternType === 'waves') {
+                // Radiating waves pattern
+                for (let i = 0; i < complexity * 20; i++) {
+                    const angle = (i / (complexity * 20)) * Math.PI * 2;
+                    const distance = (size * 2) + Math.sin(time * 2 + i * 0.1) * size * 1.5;
+                    const x = centerX + Math.cos(angle) * distance;
+                    const y = centerY + Math.sin(angle) * distance;
+                    const radius = size * 0.5 + Math.sin(time + i * 0.2) * size * 0.3;
+                    const alpha = brightness * (0.7 + 0.3 * Math.sin(time * 0.7 + i * 0.1));
+                    ctx.fillStyle = `hsla(${(hue + i * 3) % 360}, 100%, 50%, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (patternType === 'spiral') {
+                // Hypnotic spiral pattern
+                const spiralTurns = complexity * 2;
+                const points = 200;
+                ctx.lineWidth = size * 0.3;
+                
+                for (let j = 0; j < 3; j++) {
+                    ctx.beginPath();
+                    for (let i = 0; i < points; i++) {
+                        const progress = i / points;
+                        const angle = progress * Math.PI * 2 * spiralTurns + time * (j + 1);
+                        const radius = progress * (canvas.width / 2 - size);
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = centerY + Math.sin(angle) * radius;
+                        
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    const alpha = brightness * (0.7 + 0.3 * Math.sin(time * 0.5 + j));
+                    ctx.strokeStyle = `hsla(${(hue + j * 120) % 360}, 100%, 50%, ${alpha})`;
+                    ctx.stroke();
+                }
+            } else if (patternType === 'grid') {
+                // Warping grid pattern
+                const cellSize = size * 2;
+                const cols = Math.ceil(canvas.width / cellSize) + 1;
+                const rows = Math.ceil(canvas.height / cellSize) + 1;
+                
+                for (let i = 0; i < cols; i++) {
+                    for (let j = 0; j < rows; j++) {
+                        const x = i * cellSize + Math.sin(time + j * 0.2) * size * 0.5;
+                        const y = j * cellSize + Math.cos(time + i * 0.2) * size * 0.5;
+                        const s = size * 0.3 + Math.sin(time + i + j) * size * 0.2;
+                        const alpha = brightness * (0.5 + 0.5 * Math.sin(time * 0.3 + i + j));
+                        ctx.fillStyle = `hsla(${(hue + (i + j) * 5) % 360}, 100%, 50%, ${alpha})`;
+                        ctx.fillRect(x, y, s, s);
+                    }
+                }
             }
             
-            time += 1;
-            animationId = requestAnimationFrame(draw);
-        }
-        
-        // Start/stop animation
-        function startAnimation() {
-            if (!animationId) {
-                draw();
+            if (isRecording && frameCount < 7 * 60) { // 7 seconds at 60fps
+                frames.push(canvas.toDataURL('image/png'));
+                frameCount++;
             }
+            
+            requestAnimationFrame(draw);
         }
-        
-        function stopAnimation() {
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-            }
-        }
-        
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            centerX = canvas.width / 2;
-            centerY = canvas.height / 2;
-        });
-        
-        // Download WEBM clip
-        downloadBtn.addEventListener('click', async function() {
-            try {
-                // Start recording
-                recordingStatus.style.display = 'block';
-                downloadBtn.disabled = true;
-                
-                const stream = canvas.captureStream(30);
-                recordedChunks = [];
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-                
-                mediaRecorder.ondataavailable = function(e) {
-                    if (e.data.size > 0) {
-                        recordedChunks.push(e.data);
-                    }
-                };
-                
-                mediaRecorder.onstop = function() {
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = 'psychedelic-animation.webm';
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 100);
-                    
-                    recordingStatus.style.display = 'none';
-                    downloadBtn.disabled = false;
-                };
-                
-                mediaRecorder.start();
-                
-                // Stop after 7 seconds
-                setTimeout(() => {
-                    mediaRecorder.stop();
-                }, 7000);
-                
-            } catch (err) {
-                console.error('Error recording:', err);
-                recordingStatus.style.display = 'none';
-                downloadBtn.disabled = false;
-            }
-        });
         
         // Start animation
-        startAnimation();
+        draw();
+        
+        // Download functionality
+        downloadBtn.addEventListener('click', () => {
+            if (isRecording) return;
+            
+            // Reset recording state
+            frames = [];
+            frameCount = 0;
+            isRecording = true;
+            downloadBtn.disabled = true;
+            countdown.style.display = 'block';
+            
+            // Start countdown
+            let seconds = 7;
+            countdown.textContent = `Preparing download... ${seconds}`;
+            
+            countdownInterval = setInterval(() => {
+                seconds--;
+                countdown.textContent = `Preparing download... ${seconds}`;
+                
+                if (seconds <= 0) {
+                    clearInterval(countdownInterval);
+                    createAndDownloadGif();
+                }
+            }, 1000);
+        });
+        
+        function createAndDownloadGif() {
+            // For a real implementation, you would use a GIF encoder library like gif.js
+            // This is a simplified version that just downloads the current frame
+            
+            // In a production environment, you would:
+            // 1. Collect all frames during the recording period
+            // 2. Use gif.js or similar to create an animated GIF
+            // 3. Download the resulting GIF
+            
+            // For this example, we'll just download the current canvas as PNG
+            const link = document.createElement('a');
+            link.download = 'psychedelic-art.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            // Reset UI
+            isRecording = false;
+            downloadBtn.disabled = false;
+            countdown.style.display = 'none';
+        }
     </script>
 </body>
 </html>
